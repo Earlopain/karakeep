@@ -12,7 +12,7 @@ import { dataUriToBuffer } from "data-uri-to-buffer";
 import type { MimeBuffer } from "data-uri-to-buffer";
 import { execa } from "execa";
 import { fetchWithProxy, getBookmarkDomain } from "network";
-import type { RunProxyConfig } from "network";
+import type { FetchWithProxyOptions, RunProxyConfig } from "network";
 
 import { db } from "@karakeep/db";
 import {
@@ -227,7 +227,7 @@ export async function downloadAndStoreFile(
   userId: string,
   jobId: string,
   fileType: string,
-  abortSignal: AbortSignal,
+  options: FetchWithProxyOptions & { signal: AbortSignal },
   runProxy: RunProxyConfig,
 ) {
   return await withSpan(
@@ -251,13 +251,7 @@ export async function downloadAndStoreFile(
         logger.info(
           `[Crawler][${jobId}] Downloading ${fileType} from "${truncateUrl(url)}"`,
         );
-        const response = await fetchWithProxy(
-          url,
-          {
-            signal: abortSignal,
-          },
-          runProxy,
-        );
+        const response = await fetchWithProxy(url, options, runProxy);
         if (!response.ok || response.body == null) {
           throw new Error(`Failed to download ${fileType}: ${response.status}`);
         }
@@ -277,7 +271,7 @@ export async function downloadAndStoreFile(
           transform(chunk, _, callback) {
             bytesRead += chunk.length;
 
-            if (abortSignal.aborted) {
+            if (options.signal.aborted) {
               callback(new Error("AbortError"));
             } else if (bytesRead > serverConfig.maxAssetSizeMb * 1024 * 1024) {
               callback(
@@ -332,7 +326,7 @@ export async function downloadAndStoreFile(
         // A crawler timeout aborts the job-wide signal. Do not turn that abort
         // into a best-effort download miss: the queue runner must observe it so
         // the crawl is retried and is not reported as successfully completed.
-        abortSignal.throwIfAborted();
+        options.signal.throwIfAborted();
         return null;
       } finally {
         if (assetPath) {
@@ -343,8 +337,9 @@ export async function downloadAndStoreFile(
   );
 }
 
-export async function downloadAndStoreImage(
+export async function downloadAndStoreBanner(
   url: string,
+  referer: string,
   userId: string,
   jobId: string,
   abortSignal: AbortSignal,
@@ -361,7 +356,12 @@ export async function downloadAndStoreImage(
     userId,
     jobId,
     "image",
-    abortSignal,
+    {
+      signal: abortSignal,
+      headers: {
+        referer,
+      },
+    },
     runProxy,
   );
 }

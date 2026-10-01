@@ -41,8 +41,8 @@ import {
 } from "../utils/metadataResolver";
 import {
   archiveWebpage,
+  downloadAndStoreBanner,
   downloadAndStoreFile,
-  downloadAndStoreImage,
   storeHtmlContent,
   storePdf,
   storeScreenshot,
@@ -91,7 +91,9 @@ export async function handleAsAssetBookmark(
         userId,
         jobId,
         assetType,
-        abortSignal,
+        {
+          signal: abortSignal,
+        },
         runProxy,
       );
       if (!downloaded) {
@@ -372,8 +374,10 @@ export async function crawlAndParseUrl(
       abortSignal.throwIfAborted();
       let imageAssetInfo: DBAssetType | null = null;
       if (meta.image) {
-        const downloaded = await downloadAndStoreImage(
+        const referer = new URL(browserUrl).origin + "/";
+        const downloaded = await downloadAndStoreBanner(
           meta.image,
+          referer,
           userId,
           jobId,
           abortSignal,
